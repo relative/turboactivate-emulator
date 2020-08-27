@@ -34,6 +34,27 @@ void log_write(std::string str)
     file << str << std::endl;
 }
 
+// shamelessly stole these two functions from https://stackoverflow.com/a/3999597
+// i hate winapi
+// Convert a wide Unicode string to an UTF8 string
+std::string utf8_encode(const std::wstring& wstr)
+{
+    if (wstr.empty()) return std::string();
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
+    std::string strTo(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &strTo[0], size_needed, NULL, NULL);
+    return strTo;
+}
+
+// Convert an UTF8 string to a wide Unicode String
+std::wstring utf8_decode(const std::string& str)
+{
+    if (str.empty()) return std::wstring();
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+    std::wstring wstrTo(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
+    return wstrTo;
+}
 
 void initialize_ta_emulator()
 {
@@ -145,8 +166,17 @@ TURBOACTIVATE_API HRESULT TA_CC TA_GetExtraData(uint32_t handle, STRTYPE lpValue
 
 TURBOACTIVATE_API HRESULT TA_CC TA_GetFeatureValue(uint32_t handle, STRCTYPE featureName, STRTYPE lpValueStr, int cchValue)
 {
-    log_write("TA_GetFeatureValue called!");
     using originalfn = HRESULT(TA_CC*)(uint32_t, STRCTYPE, STRTYPE, int);
+    const auto str = utf8_encode(featureName);
+    log_write("TA_GetFeatureValue called with featureName=" + str);
+
+    if (reader.Get("features", str, "unlikelyvaluetobeused") == "unlikelyvaluetobeused")
+    {
+        auto val = utf8_decode(reader.Get("features", str, ""));
+        wcscpy_s(lpValueStr, cchValue, val.c_str()); // theoretically should work, i hate c++
+        return TA_OK;
+    }
+
     return static_cast<originalfn>(imports.at(8))(handle, featureName, lpValueStr, cchValue);
 }
 
