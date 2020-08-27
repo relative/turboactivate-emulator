@@ -7,6 +7,8 @@
 #include "inih.h"
 
 std::vector<void*> imports;
+INIReader reader;
+
 namespace config
 {
     namespace log
@@ -41,7 +43,7 @@ void initialize_ta_emulator()
         MessageBoxA(nullptr, "turboactivate_orig.dll failed to be found.\nPlease place it in the same directory as the proxy.", "turboactivate-emulator", MB_OK | MB_ICONERROR);
         exit(1);
     }
-    INIReader reader("turboactivate.ini");
+    reader = INIReader("turboactivate.ini");
     if (reader.ParseError() != 0)
     {
         MessageBoxA(nullptr, "Failed to pase turboactivate.ini\nPlease check your configuration file.", "turboactivate-emulator", MB_OK | MB_ICONERROR);
