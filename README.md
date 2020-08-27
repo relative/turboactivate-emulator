@@ -13,7 +13,7 @@ This project is not finished. Hopefully (if time permits) I plan to add
 
 Download a binary from the [releases page](https://github.com/relative/turboactivate-emulator/releases/latest) on GitHub, or build from source
 
-Rename the original TurboActivate dll (ex: TurboActivate32.dll) to turboactivate)orig.dll
+Rename the original TurboActivate dll (ex: TurboActivate32.dll) to turboactivate_orig.dll
 
 Place the downloaded DLL at the same path as the old TurboActivate dll (ex: TurboActivate32.dll)
 
