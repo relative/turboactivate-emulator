@@ -20,7 +20,10 @@ namespace config
         bool enabled;
         uint32_t days_remaining;
     }
-
+    namespace license
+    {
+        bool is_activated;
+    }
 }
 void log_write(std::string str)
 {
@@ -77,6 +80,7 @@ void initialize_ta_emulator()
     config::trial::enabled = reader.GetBoolean("trial", "enabled", true);
     config::trial::days_remaining = reader.GetInteger("trial", "days_remaining", 9999);
 
+    config::license::is_activated = reader.GetBoolean("license", "is_activated", true);
 
     imports.push_back(GetProcAddress(turboactivate, "TA_GetHandle"));
     imports.push_back(GetProcAddress(turboactivate, "TA_Activate"));
@@ -190,8 +194,9 @@ TURBOACTIVATE_API HRESULT TA_CC TA_GetPKey(uint32_t handle, STRTYPE lpValueStr, 
 TURBOACTIVATE_API HRESULT TA_CC TA_IsActivated(uint32_t handle)
 {
     log_write("TA_IsActivated called!");
-    using originalfn = HRESULT(TA_CC*)(uint32_t);
-    return static_cast<originalfn>(imports.at(10))(handle);
+    return config::license::is_activated ? TA_OK : TA_FAIL;
+    /*using originalfn = HRESULT(TA_CC*)(uint32_t);
+    return static_cast<originalfn>(imports.at(10))(handle);*/
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_IsGenuine(uint32_t handle)
