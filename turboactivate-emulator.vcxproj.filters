@@ -10,5 +10,6 @@
   <ItemGroup>
     <ClInclude Include="src\TurboActivate.h" />
     <ClInclude Include="src\functions.h" />
+    <ClInclude Include="src\inih.h" />
   </ItemGroup>
 </Project>

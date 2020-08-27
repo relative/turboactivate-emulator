@@ -17,7 +17,7 @@ void log_write(std::string str)
 }
 
 
-void initialize_ta_imports()
+void initialize_ta_emulator()
 {
     auto* const turboactivate = LoadLibraryA("turboactivate_orig.dll");
     if (!turboactivate)

@@ -1,3 +1,3 @@
 #pragma once
 
-void initialize_ta_imports();
+void initialize_ta_emulator();
