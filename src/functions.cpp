@@ -2,12 +2,28 @@
 #include <string>
 #include <chrono>
 #include <vector>
+
 #include "TurboActivate.h"
+#include "inih.h"
 
 std::vector<void*> imports;
+namespace config
+{
+    namespace log
+    {
+        bool enabled;
+    }
+    namespace trial
+    {
+        bool enabled;
+        uint32_t days_remaining;
+    }
 
+}
 void log_write(std::string str)
 {
+    if (!config::log::enabled)
+        return;
     static auto log_filename = []() {
         auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         return "./ta-emulator-" + std::to_string(timestamp) + ".log";
@@ -25,6 +41,20 @@ void initialize_ta_emulator()
         MessageBoxA(nullptr, "turboactivate_orig.dll failed to be found.\nPlease place it in the same directory as the proxy.", "turboactivate-emulator", MB_OK | MB_ICONERROR);
         exit(1);
     }
+    INIReader reader("turboactivate.ini");
+    if (reader.ParseError() != 0)
+    {
+        MessageBoxA(nullptr, "Failed to pase turboactivate.ini\nPlease check your configuration file.", "turboactivate-emulator", MB_OK | MB_ICONERROR);
+        exit(1);
+    }
+
+    // load config values/defaults
+    config::log::enabled = reader.GetBoolean("log", "enabled", true);
+
+    config::trial::enabled = reader.GetBoolean("trial", "enabled", true);
+    config::trial::days_remaining = reader.GetInteger("trial", "days_remaining", 9999);
+
+
     imports.push_back(GetProcAddress(turboactivate, "TA_GetHandle"));
     imports.push_back(GetProcAddress(turboactivate, "TA_Activate"));
     imports.push_back(GetProcAddress(turboactivate, "TA_ActivationRequestToFile"));
@@ -170,11 +200,12 @@ TURBOACTIVATE_API HRESULT TA_CC TA_SetCustomProxy(STRCTYPE proxy)
 TURBOACTIVATE_API HRESULT TA_CC TA_TrialDaysRemaining(uint32_t handle, uint32_t useTrialFlags, uint32_t* DaysRemaining)
 {
     log_write("TA_TrialDaysRemaining called!");
-    *DaysRemaining = 99999; // arbitrary value, could be anything
-    return TA_OK; // OK response. See TurboActivate.h for other responses
-
-    /*using originalfn = HRESULT(TA_CC*)(uint32_t, uint32_t, uint32_t*);
-    return static_cast<originalfn>(imports.at(16))(handle, useTrialFlags, DaysRemaining);*/
+    using originalfn = HRESULT(TA_CC*)(uint32_t, uint32_t, uint32_t*);
+    if (!config::trial::enabled)
+        return static_cast<originalfn>(imports.at(16))(handle, useTrialFlags, DaysRemaining);
+    
+    *DaysRemaining = config::trial::days_remaining;
+    return TA_OK;
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_UseTrial(uint32_t handle, uint32_t flags, STRCTYPE extra_data)
