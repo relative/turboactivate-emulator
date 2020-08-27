@@ -22,7 +22,17 @@ namespace config
     }
     namespace license
     {
+        bool enabled;
         bool is_activated;
+        std::string product_key;
+        bool valid_product_key;
+
+        bool genuine;
+    }
+
+    namespace deactivate
+    {
+        bool force_ok;
     }
 }
 void log_write(std::string str)
@@ -70,7 +80,7 @@ void initialize_ta_emulator()
     reader = INIReader("turboactivate.ini");
     if (reader.ParseError() != 0)
     {
-        MessageBoxA(nullptr, "Failed to pase turboactivate.ini\nPlease check your configuration file.", "turboactivate-emulator", MB_OK | MB_ICONERROR);
+        MessageBoxA(nullptr, "Failed to parse turboactivate.ini\nPlease check your configuration file.", "turboactivate-emulator", MB_OK | MB_ICONERROR);
         exit(1);
     }
 
@@ -80,7 +90,13 @@ void initialize_ta_emulator()
     config::trial::enabled = reader.GetBoolean("trial", "enabled", true);
     config::trial::days_remaining = reader.GetInteger("trial", "days_remaining", 9999);
 
+    config::license::enabled = reader.GetBoolean("license", "enabled", false);
     config::license::is_activated = reader.GetBoolean("license", "is_activated", true);
+    config::license::product_key = reader.Get("license", "product_key", "");
+    config::license::valid_product_key = reader.GetBoolean("license", "valid_product_key", true);
+    config::license::genuine = reader.GetBoolean("license", "genuine", true);
+
+    config::deactivate::force_ok = reader.GetBoolean("deactivate", "force_ok", false);
 
     imports.push_back(GetProcAddress(turboactivate, "TA_GetHandle"));
     imports.push_back(GetProcAddress(turboactivate, "TA_Activate"));
@@ -121,9 +137,11 @@ TURBOACTIVATE_API uint32_t TA_CC TA_GetHandle(STRCTYPE versionGUID)
 
 TURBOACTIVATE_API HRESULT TA_CC TA_Activate(uint32_t handle, PACTIVATE_OPTIONS options)
 {
-    log_write("TA_Activate called!");
     using originalfn = HRESULT(TA_CC*)(uint32_t, PACTIVATE_OPTIONS);
-    return static_cast<originalfn>(imports.at(1))(handle, options);
+    log_write("TA_Activate called!");
+    if (!config::license::enabled)
+        return static_cast<originalfn>(imports.at(1))(handle, options);
+    return TA_OK;
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_ActivationRequestToFile(uint32_t handle, STRCTYPE filename, PACTIVATE_OPTIONS options)
@@ -142,15 +160,21 @@ TURBOACTIVATE_API HRESULT TA_CC TA_ActivateFromFile(uint32_t handle, STRCTYPE fi
 
 TURBOACTIVATE_API HRESULT TA_CC TA_CheckAndSavePKey(uint32_t handle, STRCTYPE productKey, uint32_t flags)
 {
-    log_write("TA_CheckAndSavePKey called!");
     using originalfn = HRESULT(TA_CC*)(uint32_t, STRCTYPE, uint32_t);
-    return static_cast<originalfn>(imports.at(4))(handle, productKey, flags);
+    log_write("TA_CheckAndSavePKey called!");
+    if (!config::license::enabled)
+       return static_cast<originalfn>(imports.at(4))(handle, productKey, flags);
+
+    //TODO: add more customization for this return?
+    return TA_OK;
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_Deactivate(uint32_t handle, char erasePkey)
 {
-    log_write("TA_Deactivate called!");
     using originalfn = HRESULT(TA_CC*)(uint32_t, char);
+    log_write("TA_Deactivate called!");
+    if (config::deactivate::force_ok)
+        return TA_OK;
     return static_cast<originalfn>(imports.at(5))(handle, erasePkey);
 }
 
@@ -174,43 +198,66 @@ TURBOACTIVATE_API HRESULT TA_CC TA_GetFeatureValue(uint32_t handle, STRCTYPE fea
     const auto str = utf8_encode(featureName);
     log_write("TA_GetFeatureValue called with featureName=" + str);
 
-    if (reader.Get("features", str, "unlikelyvaluetobeused") == "unlikelyvaluetobeused")
+    if (reader.Get("features", str, "unlikelyvaluetobeused") != "unlikelyvaluetobeused")
     {
         auto val = utf8_decode(reader.Get("features", str, ""));
+        if (cchValue == 0)
+        {
+            // return required size of buffer
+            return val.size();
+        }
         wcscpy_s(lpValueStr, cchValue, val.c_str()); // theoretically should work, i hate c++
         return TA_OK;
     }
+    //return static_cast<originalfn>(imports.at(8))(handle, featureName, lpValueStr, cchValue);
+    if (cchValue == 0)
+    {
+        auto size = static_cast<originalfn>(imports.at(8))(handle, featureName, lpValueStr, cchValue); // returns req size of buffer
+        log_write("TA_GetFeatureValue(" + str + ") = (size) " + std::to_string(size));
+        return size;
+    }
+    auto resp = static_cast<originalfn>(imports.at(8))(handle, featureName, lpValueStr, cchValue);
+    log_write("TA_GetFeatureValue(" + str + ") = " + utf8_encode(lpValueStr));
 
-    return static_cast<originalfn>(imports.at(8))(handle, featureName, lpValueStr, cchValue);
+    return resp;
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_GetPKey(uint32_t handle, STRTYPE lpValueStr, int cchValue)
 {
-    log_write("TA_GetPKey called!");
     using originalfn = HRESULT(TA_CC*)(uint32_t, STRTYPE, int);
-    return static_cast<originalfn>(imports.at(9))(handle, lpValueStr, cchValue);
+    log_write("TA_GetPKey called!");
+    if (!config::license::enabled)
+        return static_cast<originalfn>(imports.at(9))(handle, lpValueStr, cchValue);
+    auto val = utf8_decode(config::license::product_key);
+    wcscpy_s(lpValueStr, cchValue, val.c_str()); // theoretically should work, i hate c++
+    return TA_OK;
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_IsActivated(uint32_t handle)
 {
+    using originalfn = HRESULT(TA_CC*)(uint32_t);
     log_write("TA_IsActivated called!");
+    if (!config::license::enabled)
+        return static_cast<originalfn>(imports.at(10))(handle);
     return config::license::is_activated ? TA_OK : TA_FAIL;
-    /*using originalfn = HRESULT(TA_CC*)(uint32_t);
-    return static_cast<originalfn>(imports.at(10))(handle);*/
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_IsGenuine(uint32_t handle)
 {
-    log_write("TA_IsGenuine called!");
     using originalfn = HRESULT(TA_CC*)(uint32_t);
-    return static_cast<originalfn>(imports.at(11))(handle);
+    log_write("TA_IsGenuine called!");
+    if (!config::license::enabled)
+        return static_cast<originalfn>(imports.at(11))(handle);
+    return config::license::genuine ? TA_OK : TA_E_ACTIVATE;
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_IsGenuineEx(uint32_t handle, PGENUINE_OPTIONS options)
 {
-    log_write("TA_IsGenuineEx called!");
     using originalfn = HRESULT(TA_CC*)(uint32_t, PGENUINE_OPTIONS);
-    return static_cast<originalfn>(imports.at(12))(handle, options);
+    log_write("TA_IsGenuineEx called!");
+    if (!config::license::enabled)
+        return static_cast<originalfn>(imports.at(12))(handle, options);
+    return config::license::genuine ? TA_OK : TA_E_ACTIVATE;
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_GenuineDays(uint32_t handle, uint32_t nDaysBetweenChecks, uint32_t nGraceDaysOnInetErr, uint32_t* DaysRemaining, char* inGracePeriod)
@@ -222,9 +269,11 @@ TURBOACTIVATE_API HRESULT TA_CC TA_GenuineDays(uint32_t handle, uint32_t nDaysBe
 
 TURBOACTIVATE_API HRESULT TA_CC TA_IsProductKeyValid(uint32_t handle)
 {
-    log_write("TA_IsProductKeyValid called!");
     using originalfn = HRESULT(TA_CC*)(uint32_t);
-    return static_cast<originalfn>(imports.at(14))(handle);
+    log_write("TA_IsProductKeyValid called!");
+    if (!config::license::enabled)
+        return static_cast<originalfn>(imports.at(14))(handle);
+    return config::license::valid_product_key ? TA_OK : TA_FAIL;
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_SetCustomProxy(STRCTYPE proxy)
@@ -310,7 +359,8 @@ TURBOACTIVATE_API HRESULT TA_CC TA_Cleanup(void)
 
 TURBOACTIVATE_API HRESULT TA_CC TA_IsDateValid(uint32_t handle, STRCTYPE date_time, uint32_t flags)
 {
-    log_write("TA_IsDateValid called!");
+    auto str = utf8_encode(date_time);
+    log_write("TA_IsDateValid(" + str + ") called!");
     using originalfn = HRESULT(TA_CC*)(uint32_t, STRCTYPE, uint32_t);
     return static_cast<originalfn>(imports.at(26))(handle, date_time, flags);
 }
