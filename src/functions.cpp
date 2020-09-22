@@ -30,6 +30,11 @@ namespace config
         bool genuine;
     }
 
+
+    namespace misc {
+        bool antivm_detect;
+    }
+
     namespace deactivate
     {
         bool force_ok;
@@ -95,6 +100,8 @@ void initialize_ta_emulator()
     config::license::product_key = reader.Get("license", "product_key", "");
     config::license::valid_product_key = reader.GetBoolean("license", "valid_product_key", true);
     config::license::genuine = reader.GetBoolean("license", "genuine", true);
+
+    config::misc::antivm_detect = reader.GetBoolean("misc", "antivm_detect", true);
 
     config::deactivate::force_ok = reader.GetBoolean("deactivate", "force_ok", false);
 
@@ -287,6 +294,11 @@ TURBOACTIVATE_API HRESULT TA_CC TA_TrialDaysRemaining(uint32_t handle, uint32_t 
 {
     log_write("TA_TrialDaysRemaining called!");
     using originalfn = HRESULT(TA_CC*)(uint32_t, uint32_t, uint32_t*);
+
+    if (config::misc::antivm_detect) {
+        useTrialFlags = useTrialFlags & ~TA_DISALLOW_VM;
+    }
+
     if (!config::trial::enabled)
         return static_cast<originalfn>(imports.at(16))(handle, useTrialFlags, DaysRemaining);
     
@@ -297,8 +309,14 @@ TURBOACTIVATE_API HRESULT TA_CC TA_TrialDaysRemaining(uint32_t handle, uint32_t 
 TURBOACTIVATE_API HRESULT TA_CC TA_UseTrial(uint32_t handle, uint32_t flags, STRCTYPE extra_data)
 {
     log_write("TA_UseTrial called!");
+    if (config::misc::antivm_detect) {
+        flags &= ~TA_DISALLOW_VM;
+    }
+
     using originalfn = HRESULT(TA_CC*)(uint32_t, uint32_t, STRCTYPE);
-    return static_cast<originalfn>(imports.at(17))(handle, flags, extra_data);
+    auto retval = static_cast<originalfn>(imports.at(17))(handle, flags, extra_data);
+    if (config::misc::antivm_detect && retval == TA_E_IN_VM) retval = TA_OK;
+    return retval;
 }
 
 TURBOACTIVATE_API HRESULT TA_CC TA_UseTrialVerifiedRequest(uint32_t handle, STRCTYPE filename, STRCTYPE extra_data)
@@ -318,6 +336,11 @@ TURBOACTIVATE_API HRESULT TA_CC TA_UseTrialVerifiedFromFile(uint32_t handle, STR
 TURBOACTIVATE_API HRESULT TA_CC TA_ExtendTrial(uint32_t handle, uint32_t useTrialFlags, STRCTYPE trialExtension)
 {
     log_write("TA_ExtendTrial called!");
+
+    if (config::misc::antivm_detect) {
+        useTrialFlags = useTrialFlags & ~TA_DISALLOW_VM;
+    }
+
     using originalfn = HRESULT(TA_CC*)(uint32_t, uint32_t, STRCTYPE);
     return static_cast<originalfn>(imports.at(20))(handle, useTrialFlags, trialExtension);
 }
