@@ -2,6 +2,7 @@
 #include <string>
 #include <chrono>
 #include <vector>
+#include <shlobj.h>
 
 #include "TurboActivate.h"
 #include "inih.h"
@@ -18,6 +19,7 @@ namespace config
     namespace trial
     {
         bool enabled;
+        bool usetrial_ok;
         uint32_t days_remaining;
     }
     namespace license
@@ -39,17 +41,6 @@ namespace config
     {
         bool force_ok;
     }
-}
-void log_write(std::string str)
-{
-    if (!config::log::enabled)
-        return;
-    static auto log_filename = []() {
-        auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        return "./ta-emulator-" + std::to_string(timestamp) + ".log";
-    }();
-    std::ofstream file(log_filename , std::ios::app | std::ios::out);
-    file << str << std::endl;
 }
 
 // shamelessly stole these two functions from https://stackoverflow.com/a/3999597
@@ -74,6 +65,22 @@ std::wstring utf8_decode(const std::string& str)
     return wstrTo;
 }
 
+
+void log_write(std::string str)
+{
+    if (!config::log::enabled)
+        return;
+    static auto log_filename = []() {
+        auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        /*LPWSTR path;
+        SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &path);
+        std::string p = utf8_encode(path);*/
+        return std::string(".\\ta-emulator-" + std::to_string(timestamp) + ".log").c_str();
+    }();
+    std::ofstream file(log_filename , std::ios::app | std::ios::out);
+    file << str << std::endl;
+}
+
 void initialize_ta_emulator()
 {
     auto* const turboactivate = LoadLibraryA("turboactivate_orig.dll");
@@ -94,6 +101,7 @@ void initialize_ta_emulator()
 
     config::trial::enabled = reader.GetBoolean("trial", "enabled", true);
     config::trial::days_remaining = reader.GetInteger("trial", "days_remaining", 9999);
+    config::trial::usetrial_ok = reader.GetBoolean("trial", "usetrial_ok", true);
 
     config::license::enabled = reader.GetBoolean("license", "enabled", false);
     config::license::is_activated = reader.GetBoolean("license", "is_activated", true);
@@ -311,6 +319,10 @@ TURBOACTIVATE_API HRESULT TA_CC TA_UseTrial(uint32_t handle, uint32_t flags, STR
     log_write("TA_UseTrial called!");
     if (config::misc::antivm_detect) {
         flags &= ~TA_DISALLOW_VM;
+    }
+
+    if (config::trial::usetrial_ok) {
+        return TA_OK;
     }
 
     using originalfn = HRESULT(TA_CC*)(uint32_t, uint32_t, STRCTYPE);
