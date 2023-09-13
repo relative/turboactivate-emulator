@@ -75,9 +75,9 @@ void log_write(std::string str)
         /*LPWSTR path;
         SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &path);
         std::string p = utf8_encode(path);*/
-        return std::string(".\\ta-emulator-" + std::to_string(timestamp) + ".log").c_str();
+        return std::string(".\\ta-emulator-" + std::to_string(timestamp) + ".log");
     }();
-    std::ofstream file(log_filename , std::ios::app | std::ios::out);
+    std::ofstream file(log_filename.c_str(), std::ios::app | std::ios::out);
     file << str << std::endl;
 }
 
