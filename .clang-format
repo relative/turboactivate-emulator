@@ -1,0 +1,17 @@
+---
+BasedOnStyle: Google
+TabWidth: 2
+IndentWidth: 2
+NamespaceIndentation: All
+IndentPPDirectives: BeforeHash
+PointerAlignment: Left
+QualifierAlignment: Left
+ReferenceAlignment: Left
+SpaceAroundPointerQualifiers: Default
+DerivePointerAlignment: false
+IndentAccessModifiers: false
+AttributeMacros: ['WASM_VISIBLE', 'WASM_IMPORT', 'WASM_EXPORT']
+InsertNewlineAtEOF: true
+BreakAfterAttributes: Always
+---
+

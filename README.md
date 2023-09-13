@@ -16,7 +16,3 @@ Download a binary from the [releases page](https://github.com/relative/turboacti
 Rename the original TurboActivate dll (ex: TurboActivate32.dll) to turboactivate_orig.dll
 
 Place the downloaded DLL at the same path as the old TurboActivate dll (ex: TurboActivate32.dll)
-
-## Building
-
-Use Visual Studio 2019 with vc142 build tools.

@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "cmake",
+      "label": "Build",
+      "command": "build",
+      "targets": ["turboactivate-emulator"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$msCompile", "$gcc"]
+    }
+  ]
+}
